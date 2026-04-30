@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useEffect, useState } from 'react';
 import { useCrew, useISS, useObserverLocation, useReverseGeocode, useTicker } from '@/lib/hooks';
 import { fmt, nf, nowHHMMSS, orbitsToday } from '@/lib/utils';
 import {
@@ -89,19 +90,51 @@ function Footer({ lastUpdate }: { lastUpdate: Date | null }) {
   );
 }
 
+function StatusBanner({ status, hasFix }: { status: 'connecting' | 'ok' | 'error'; hasFix: boolean }) {
+  if (status === 'ok') return null;
+  if (status === 'connecting' && !hasFix) {
+    return (
+      <div className="status-banner" style={{ color: 'var(--text-dim)', borderColor: 'var(--border-2)' }}>
+        <span className="dot" style={{ background: 'var(--accent)' }} />
+        Connecting to ISS telemetry…
+      </div>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <div className="status-banner">
+        <span className="dot" />
+        {hasFix ? 'Connection lost — using last known position' : 'Unable to reach ISS API — retrying…'}
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function Tracker() {
-  const { iss, trail, lastUpdate } = useISS();
+  const { iss, trail, lastUpdate, status } = useISS();
   const { crew, isFallback } = useCrew();
   const location = useReverseGeocode(iss);
   const { obs, status: obsStatus, request: requestObs } = useObserverLocation();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   useTicker(1000);
   const terminatorTick = useTicker(60000);
 
   const orbits = orbitsToday();
   const trimmedTrail = trail.slice(-TRAIL_LENGTH);
 
+  // close drawer on Escape
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+
   return (
-    <div className="app">
+    <div className={`app${drawerOpen ? ' sidebar-open' : ''}`}>
       <Header iss={iss} crewCount={crew ? crew.length : null} orbits={orbits} />
       <main className="app-main">
         <Map
@@ -112,8 +145,9 @@ export default function Tracker() {
           showFootprint
           showFuture={false}
           terminatorTick={terminatorTick}
+          statusOverlay={<StatusBanner status={status} hasFix={!!iss} />}
         />
-        <aside className="app-sidebar">
+        <aside className={`app-sidebar${drawerOpen ? ' open' : ''}`}>
           <PositionPanel iss={iss} location={location} />
           <VisibilityPanel iss={iss} />
           <CycleClockPanel iss={iss} />
@@ -137,6 +171,19 @@ export default function Tracker() {
           <CuriositiesPanel />
           <FactsPanel />
         </aside>
+        <button
+          className="mobile-toggle"
+          onClick={() => setDrawerOpen((v) => !v)}
+          aria-label={drawerOpen ? 'Close panels' : 'Open panels'}
+          aria-expanded={drawerOpen}
+        >
+          {drawerOpen ? '✕ Close' : '☰ Panels'}
+        </button>
+        <div
+          className="mobile-backdrop"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden={!drawerOpen}
+        />
       </main>
       <Footer lastUpdate={lastUpdate} />
     </div>

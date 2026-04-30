@@ -18,6 +18,7 @@ type Props = {
   showFootprint: boolean;
   showFuture: boolean;
   terminatorTick: number;
+  statusOverlay?: React.ReactNode;
 };
 
 const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -31,6 +32,7 @@ export default function Map({
   showFootprint,
   showFuture,
   terminatorTick,
+  statusOverlay,
 }: Props) {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -221,6 +223,7 @@ export default function Map({
       <button className="map-btn" onClick={focusISS} title="Center on ISS">
         ⊕ Center on ISS
       </button>
+      {statusOverlay}
     </div>
   );
 }

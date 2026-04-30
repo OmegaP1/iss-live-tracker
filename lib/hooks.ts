@@ -8,10 +8,11 @@ import {
 } from './data';
 import { IssFix, oceanFromLatLon } from './utils';
 
-const ISS_URL = 'https://api.wheretheiss.at/v1/satellites/25544';
+const ISS_URL = '/api/iss';
 const CREW_URL = '/api/crew';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
 const POLL_MS = 5000;
+const POLL_MS_ERROR = 10000;
 const NOMINATIM_MIN_INTERVAL = 15000;
 const TRAIL_MAX = 200;
 
@@ -19,28 +20,39 @@ export type Location = { name: string; sub: string; tag: 'GEO' | 'LAND' | 'OCEAN
 
 export type ObserverStatus = 'idle' | 'requesting' | 'ok' | 'denied' | 'error';
 
+export type IssStatus = 'connecting' | 'ok' | 'error';
+
 // Live ISS telemetry + persistent trail
 export function useISS() {
   const [iss, setIss] = useState<IssFix | null>(null);
   const [trail, setTrail] = useState<IssFix[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [status, setStatus] = useState<IssStatus>('connecting');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = async () => {
+      let nextDelay = POLL_MS;
       try {
-        const res = await fetch(ISS_URL);
+        const res = await fetch(ISS_URL, { cache: 'no-store' });
         if (!res.ok) throw new Error('iss http ' + res.status);
         const data = await res.json();
         if (cancelled) return;
+        if (data.error) throw new Error(data.error);
+        const lat = Number(data.lat);
+        const lon = Number(data.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          throw new Error('invalid iss payload');
+        }
         const point: IssFix = {
-          lat: Number(data.latitude),
-          lon: Number(data.longitude),
-          alt: Number(data.altitude),
-          vel: Number(data.velocity),
-          visibility: data.visibility,
+          lat,
+          lon,
+          alt: Number(data.alt) || 408,
+          vel: Number(data.vel) || 27600,
+          visibility: data.visibility || 'daylight',
           t: Date.now(),
         };
         setIss(point);
@@ -50,11 +62,17 @@ export function useISS() {
           return next;
         });
         setLastUpdate(new Date());
+        setStatus('ok');
+        setErrorMsg(null);
       } catch (err) {
+        if (cancelled) return;
+        nextDelay = POLL_MS_ERROR;
+        setStatus('error');
+        setErrorMsg(err instanceof Error ? err.message : 'unknown');
         // eslint-disable-next-line no-console
         console.warn('ISS fetch failed:', err);
       } finally {
-        if (!cancelled) timer = setTimeout(tick, POLL_MS);
+        if (!cancelled) timer = setTimeout(tick, nextDelay);
       }
     };
 
@@ -65,7 +83,7 @@ export function useISS() {
     };
   }, []);
 
-  return { iss, trail, lastUpdate };
+  return { iss, trail, lastUpdate, status, errorMsg };
 }
 
 // Crew with API + fallback enrichment
