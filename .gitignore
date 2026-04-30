@@ -38,3 +38,7 @@ next-env.d.ts
 
 # claude code local settings
 /.claude
+
+# demo recorder workspace (heavy local deps + intermediate captures)
+/demo/node_modules
+/demo/.recording
