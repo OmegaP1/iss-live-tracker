@@ -2,6 +2,8 @@
 
 Real-time ISS telemetry — position, crew, orbital mechanics, day/night cycle, observer pass prediction, and more. Next.js 14 (App Router) + Tailwind, deployable to Vercel without a database.
 
+**Live demo:** <https://iss-live-tracker-xi.vercel.app/>
+
 ## Stack
 
 - Next.js 14 (App Router) + React 18 + TypeScript
